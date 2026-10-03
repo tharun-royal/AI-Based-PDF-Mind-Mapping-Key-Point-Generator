@@ -1,0 +1,179 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f4f7fb;
+    color: #172033;
+}
+
+header {
+    background: linear-gradient(135deg, #182848, #4b6cb7);
+    color: white;
+    padding: 35px 7%;
+}
+
+header h1 {
+    margin: 0 0 8px;
+    font-size: 34px;
+}
+
+header p {
+    margin: 0;
+    opacity: .9;
+}
+
+main {
+    width: 86%;
+    max-width: 1200px;
+    margin: 30px auto;
+}
+
+.card, .panel {
+    background: white;
+    border-radius: 16px;
+    padding: 25px;
+    margin-bottom: 22px;
+    box-shadow: 0 8px 25px rgba(0,0,0,.07);
+}
+
+.card h2 {
+    margin-top: 0;
+}
+
+.upload-box, .topic-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+input[type="file"], input[type="text"], #topicInput {
+    flex: 1;
+    padding: 13px;
+    border: 1px solid #ccd4e0;
+    border-radius: 10px;
+    background: white;
+}
+
+button {
+    border: 0;
+    border-radius: 10px;
+    padding: 13px 20px;
+    cursor: pointer;
+    background: #3157d5;
+    color: white;
+    font-weight: bold;
+}
+
+button:hover {
+    opacity: .9;
+}
+
+.status {
+    margin-top: 15px;
+    color: #176b3a;
+}
+
+.status.error {
+    color: #c62828;
+}
+
+.hidden {
+    display: none;
+}
+
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.result-header h2 {
+    margin: 8px 0;
+}
+
+.badge {
+    font-size: 12px;
+    background: #e7edff;
+    color: #3157d5;
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-weight: bold;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.full {
+    grid-column: 1 / -1;
+}
+
+.panel h3 {
+    margin-top: 0;
+}
+
+#points li {
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+
+.tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.tag {
+    padding: 8px 12px;
+    background: #eef2ff;
+    color: #3157d5;
+    border-radius: 20px;
+    font-size: 14px;
+}
+
+.mindmap {
+    overflow-x: auto;
+    text-align: center;
+    min-height: 200px;
+}
+
+.source {
+    color: #687386;
+    font-size: 13px;
+}
+
+@media (max-width: 700px) {
+    header {
+        padding: 28px 5%;
+    }
+
+    header h1 {
+        font-size: 27px;
+    }
+
+    main {
+        width: 92%;
+    }
+
+    .grid {
+        grid-template-columns: 1fr;
+    }
+
+    .full {
+        grid-column: auto;
+    }
+
+    .upload-box, .topic-row, .result-header {
+        flex-direction: column;
+    }
+
+    button {
+        width: 100%;
+    }
+}

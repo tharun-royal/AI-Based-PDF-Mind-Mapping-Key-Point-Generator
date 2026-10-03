@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Mind Mapper AI</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<header>
+    <div>
+        <h1>🧠 PDF Mind Mapper AI</h1>
+        <p>Turn PDFs and any new topic into simple notes and mind maps.</p>
+    </div>
+</header>
+
+<main>
+    <section class="card">
+        <h2>📄 Analyze a PDF</h2>
+        <p>Upload study material, notes, reports or textbooks.</p>
+        <div class="upload-box">
+            <input type="file" id="pdfFile" accept=".pdf">
+            <button onclick="analyzePDF()">Analyze PDF</button>
+        </div>
+        <div id="pdfStatus"></div>
+    </section>
+
+    <section class="card">
+        <h2>➕ Learn a New Topic</h2>
+        <p>This topic does not have to exist in your PDF.</p>
+        <div class="topic-row">
+            <input id="topicInput" placeholder="Example: Quantum Computing">
+            <button onclick="newTopic()">Generate Topic</button>
+        </div>
+        <div id="topicStatus"></div>
+    </section>
+
+    <section id="result" class="result hidden">
+        <div class="result-header">
+            <div>
+                <span class="badge">AI RESULT</span>
+                <h2 id="resultTitle"></h2>
+            </div>
+            <button onclick="downloadNotes()">⬇ Download Notes</button>
+        </div>
+
+        <div class="grid">
+            <div class="panel">
+                <h3>📝 Summary</h3>
+                <p id="summary"></p>
+            </div>
+
+            <div class="panel">
+                <h3>🔑 Keywords</h3>
+                <div id="keywords" class="tags"></div>
+            </div>
+
+            <div class="panel full">
+                <h3>📌 Main Points</h3>
+                <ol id="points"></ol>
+            </div>
+
+            <div class="panel full">
+                <h3>🗺️ Mind Map</h3>
+                <div id="mindmap" class="mindmap"></div>
+            </div>
+        </div>
+
+        <p id="source" class="source"></p>
+    </section>
+</main>
+
+<script>
+mermaid.initialize({ startOnLoad: false, theme: "default" });
+
+let currentData = null;
+
+function setStatus(id, msg, error=false) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.className = error ? "status error" : "status";
+}
+
+async function analyzePDF() {
+    const file = document.getElementById("pdfFile").files[0];
+    if (!file) {
+        setStatus("pdfStatus", "Please select a PDF.", true);
+        return;
+    }
+
+    setStatus("pdfStatus", "Analyzing PDF...");
+
+    const form = new FormData();
+    form.append("pdf", file);
+
+    try {
+        const response = await fetch("/api/analyze-pdf", {
+            method: "POST",
+            body: form
+        });
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.error);
+        showResult(data);
+        setStatus("pdfStatus", "PDF analyzed successfully.");
+    } catch (e) {
+        setStatus("pdfStatus", e.message, true);
+    }
+}
+
+async function newTopic() {
+    const topic = document.getElementById("topicInput").value.trim();
+
+    if (!topic) {
+        setStatus("topicStatus", "Please enter a topic.", true);
+        return;
+    }
+
+    setStatus("topicStatus", "Generating topic content...");
+
+    try {
+        const response = await fetch("/api/new-topic", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({topic})
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+
+        showResult(data);
+        setStatus("topicStatus", "New topic generated.");
+    } catch (e) {
+        setStatus("topicStatus", e.message, true);
+    }
+}
+
+async function showResult(data) {
+    currentData = data;
+
+    document.getElementById("result").classList.remove("hidden");
+    document.getElementById("resultTitle").textContent = data.title;
+    document.getElementById("summary").textContent = data.summary;
+
+    const tags = document.getElementById("keywords");
+    tags.innerHTML = "";
+    data.keywords.forEach(k => {
+        const span = document.createElement("span");
+        span.className = "tag";
+        span.textContent = k;
+        tags.appendChild(span);
+    });
+
+    const list = document.getElementById("points");
+    list.innerHTML = "";
+    data.points.forEach(p => {
+        const li = document.createElement("li");
+        li.textContent = p;
+        list.appendChild(li);
+    });
+
+    const lines = [
+        "mindmap",
+        `  root((${escapeMermaid(data.title)}))`
+    ];
+
+    data.keywords.forEach((k, i) => {
+        lines.push(`  root --> n${i}[${escapeMermaid(k)}]`);
+    });
+
+    const box = document.getElementById("mindmap");
+    box.innerHTML = `<div class="mermaid">${lines.join("\n")}</div>`;
+
+    try {
+        await mermaid.run({nodes: [box.querySelector(".mermaid")]});
+    } catch (e) {
+        box.innerHTML = "<p>Mind map could not be rendered.</p>";
+    }
+
+    document.getElementById("source").textContent =
+        data.source ? "Source: " + data.source : "Source: Uploaded PDF";
+}
+
+function escapeMermaid(text) {
+    return String(text).replace(/[()[\]{}<>]/g, "");
+}
+
+function downloadNotes() {
+    if (!currentData) return;
+
+    let text = `PDF MIND MAPPER AI\n\n`;
+    text += `TITLE: ${currentData.title}\n\n`;
+    text += `SUMMARY:\n${currentData.summary}\n\n`;
+    text += `KEYWORDS:\n${currentData.keywords.join(", ")}\n\n`;
+    text += `MAIN POINTS:\n`;
+    currentData.points.forEach((p, i) => {
+        text += `${i + 1}. ${p}\n`;
+    });
+    text += `\nMIND MAP:\n`;
+    text += currentData.keywords.map(k => `- ${currentData.title} -> ${k}`).join("\n");
+
+    const blob = new Blob([text], {type: "text/plain"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = currentData.title.replace(/\s+/g, "_") + "_notes.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
