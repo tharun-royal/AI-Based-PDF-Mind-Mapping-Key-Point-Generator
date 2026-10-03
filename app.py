@@ -7,92 +7,75 @@ from collections import Counter
 app = Flask(__name__)
 
 
-# ============================================================
+# --------------------------------------------------
 # STOP WORDS
-# ============================================================
+# --------------------------------------------------
 
-STOPWORDS = {
-    "the", "and", "for", "that", "this", "with", "from",
-    "are", "was", "were", "been", "have", "has", "had",
-    "will", "would", "could", "should", "can", "may",
-    "into", "about", "their", "there", "they", "them",
-    "then", "than", "these", "those", "such", "also",
-    "which", "when", "where", "what", "who", "how",
-    "why", "your", "you", "our", "out", "not", "but",
-    "all", "any", "its", "his", "her", "him", "she",
-    "he", "it", "is", "in", "on", "at", "to", "of",
-    "a", "an", "as", "or", "be", "by", "we", "i",
-    "do", "does", "did", "if", "so", "because", "very",
-    "more", "most", "other", "some", "each", "many",
-    "only", "over", "under", "between", "through",
-    "during", "before", "after", "while", "using",
-    "used", "use"
+STOP_WORDS = {
+    "the", "is", "are", "was", "were", "and", "or", "of",
+    "to", "in", "on", "for", "with", "a", "an", "as",
+    "by", "at", "from", "that", "this", "these", "those",
+    "it", "its", "be", "been", "being", "has", "have",
+    "had", "do", "does", "did", "will", "would", "can",
+    "could", "should", "may", "might", "must", "than",
+    "then", "also", "such", "into", "about", "over",
+    "under", "between", "through", "during", "after",
+    "before", "more", "most", "other", "some", "any",
+    "each", "every", "both", "many", "much", "very",
+    "their", "there", "they", "them", "he", "she", "his",
+    "her", "you", "your", "we", "our", "i", "me", "my",
+    "which", "who", "what", "when", "where", "why", "how"
 }
 
 
-# ============================================================
-# HOME PAGE
-# ============================================================
-
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-
-# ============================================================
+# --------------------------------------------------
 # CLEAN TEXT
-# ============================================================
+# --------------------------------------------------
 
 def clean_text(text):
     text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"[^\w\s.,;:!?()\-]", " ", text)
     return text.strip()
 
 
-# ============================================================
+# --------------------------------------------------
 # GET WORDS
-# ============================================================
+# --------------------------------------------------
 
 def get_words(text):
-    words = re.findall(r"\b[a-zA-Z][a-zA-Z0-9-]{2,}\b", text.lower())
+    words = re.findall(r"\b[a-zA-Z]{4,}\b", text.lower())
 
     words = [
         word for word in words
-        if word not in STOPWORDS
+        if word not in STOP_WORDS
     ]
 
     return words
 
 
-# ============================================================
-# KEYWORDS
-# ============================================================
+# --------------------------------------------------
+# GET KEYWORDS
+# --------------------------------------------------
 
-def get_keywords(text, limit=10):
+def get_keywords(text, limit=8):
 
     words = get_words(text)
 
     counter = Counter(words)
 
-    result = []
+    keywords = [
+        word.capitalize()
+        for word, count in counter.most_common(limit)
+    ]
 
-    for word, count in counter.most_common():
-
-        if word not in result:
-            result.append(word)
-
-        if len(result) >= limit:
-            break
-
-    return result
+    return keywords
 
 
-# ============================================================
-# SENTENCES
-# ============================================================
+# --------------------------------------------------
+# GET SENTENCES
+# --------------------------------------------------
 
 def get_sentences(text):
-
-    text = re.sub(r"\s+", " ", text)
 
     sentences = re.split(
         r"(?<=[.!?])\s+",
@@ -108,145 +91,133 @@ def get_sentences(text):
     return sentences
 
 
-# ============================================================
-# MAIN POINTS
-# ============================================================
+# --------------------------------------------------
+# GET MAIN POINTS
+# --------------------------------------------------
 
 def get_main_points(text, limit=8):
 
     sentences = get_sentences(text)
 
     if not sentences:
-        return []
+        return [
+            "No clear main points could be extracted."
+        ]
 
+    keywords = get_words(text)
 
-    keywords = get_keywords(
-        text,
-        limit=15
-    )
-
+    keyword_frequency = Counter(keywords)
 
     scored_sentences = []
 
+    for index, sentence in enumerate(sentences):
 
-    for sentence in sentences:
-
-        words = set(
-            get_words(sentence)
+        words = re.findall(
+            r"\b[a-zA-Z]{4,}\b",
+            sentence.lower()
         )
 
-
-        score = 0
-
-        for keyword in keywords:
-
-            if keyword in words:
-                score += 1
-
-
-        # Prefer reasonably sized sentences
-        if 40 <= len(sentence) <= 250:
-            score += 1
-
+        score = sum(
+            keyword_frequency.get(word, 0)
+            for word in words
+        )
 
         scored_sentences.append(
-            (score, sentence)
+            (score, index, sentence)
         )
-
 
     scored_sentences.sort(
         key=lambda x: x[0],
         reverse=True
     )
 
+    selected = scored_sentences[:limit]
 
-    points = []
+    # Keep original document order
+    selected.sort(key=lambda x: x[1])
 
-
-    for score, sentence in scored_sentences:
-
-        if sentence not in points:
-
-            points.append(sentence)
-
-
-        if len(points) >= limit:
-            break
+    return [
+        sentence
+        for score, index, sentence in selected
+    ]
 
 
-    return points
-
-
-# ============================================================
+# --------------------------------------------------
 # SUMMARY
-# ============================================================
+# --------------------------------------------------
 
-def make_summary(text):
+def make_summary(text, limit=5):
 
     sentences = get_sentences(text)
 
     if not sentences:
-        return "No readable text was found in this document."
+        return "No summary could be generated."
 
+    keywords = get_words(text)
+    frequency = Counter(keywords)
 
-    points = get_main_points(
-        text,
-        limit=3
+    scored = []
+
+    for index, sentence in enumerate(sentences):
+
+        words = re.findall(
+            r"\b[a-zA-Z]{4,}\b",
+            sentence.lower()
+        )
+
+        score = sum(
+            frequency.get(word, 0)
+            for word in words
+        )
+
+        scored.append(
+            (score, index, sentence)
+        )
+
+    scored.sort(
+        key=lambda x: x[0],
+        reverse=True
     )
 
+    selected = scored[:limit]
 
-    if points:
-
-        return " ".join(points)
-
+    selected.sort(key=lambda x: x[1])
 
     return " ".join(
-        sentences[:3]
+        sentence
+        for score, index, sentence in selected
     )
 
 
-# ============================================================
-# FIND SENTENCE FOR KEYWORD
-# ============================================================
+# --------------------------------------------------
+# FIND POINTS FOR KEYWORD
+# --------------------------------------------------
 
 def find_points_for_keyword(
     keyword,
     sentences,
-    used_sentences,
-    limit=2
+    limit=3
 ):
 
-    keyword = keyword.lower()
+    keyword_lower = keyword.lower()
 
-    matches = []
-
+    matched = []
 
     for sentence in sentences:
 
-        if sentence in used_sentences:
-            continue
+        if keyword_lower in sentence.lower():
+
+            matched.append(sentence)
+
+    if not matched:
+        return sentences[:limit]
+
+    return matched[:limit]
 
 
-        words = set(
-            get_words(sentence)
-        )
-
-
-        if keyword in words:
-
-            matches.append(sentence)
-
-
-        if len(matches) >= limit:
-            break
-
-
-    return matches
-
-
-# ============================================================
-# CREATE STRUCTURED MIND MAP
-# ============================================================
+# --------------------------------------------------
+# CREATE MIND MAP BRANCHES
+# --------------------------------------------------
 
 def create_branches(
     title,
@@ -258,249 +229,101 @@ def create_branches(
 
     branches = []
 
-    used_sentences = set()
-
-
-    # --------------------------------------------------------
-    # Create branches from keywords
-    # --------------------------------------------------------
-
-    for keyword in keywords[:8]:
+    for keyword in keywords:
 
         points = find_points_for_keyword(
             keyword,
             sentences,
-            used_sentences,
-            limit=2
+            3
         )
 
-
-        cleaned_points = []
-
-
-        for point in points:
-
-            short_point = point.strip()
-
-
-            # Keep point readable
-            if len(short_point) > 150:
-
-                short_point = (
-                    short_point[:147] + "..."
-                )
-
-
-            cleaned_points.append(
-                short_point
-            )
-
-
-            used_sentences.add(point)
-
-
-        branches.append(
-            {
-                "name": keyword.title(),
-                "points": cleaned_points
-            }
-        )
-
-
-    # --------------------------------------------------------
-    # If keyword branches don't have points,
-    # distribute important points.
-    # --------------------------------------------------------
-
-    all_points = get_main_points(
-        text,
-        limit=10
-    )
-
-
-    for index, branch in enumerate(branches):
-
-        if not branch["points"]:
-
-            if index < len(all_points):
-
-                point = all_points[index]
-
-                if len(point) > 150:
-
-                    point = (
-                        point[:147] + "..."
-                    )
-
-                branch["points"].append(
-                    point
-                )
-
-
-    # --------------------------------------------------------
-    # Remove empty branches
-    # --------------------------------------------------------
-
-    branches = [
-        branch
-        for branch in branches
-        if branch["name"]
-    ]
-
+        branches.append({
+            "name": keyword,
+            "points": points
+        })
 
     return branches
 
 
-# ============================================================
+# --------------------------------------------------
 # PDF TEXT EXTRACTION
-# ============================================================
+# --------------------------------------------------
 
 def extract_pdf_text(file):
 
+    document = fitz.open(
+        stream=file.read(),
+        filetype="pdf"
+    )
+
     text = ""
 
+    for page in document:
 
-    try:
+        text += page.get_text()
 
-        pdf = fitz.open(
-            stream=file.read(),
-            filetype="pdf"
-        )
-
-
-        for page in pdf:
-
-            page_text = page.get_text()
-
-            if page_text:
-
-                text += "\n" + page_text
-
-
-        pdf.close()
-
-
-    except Exception as e:
-
-        raise Exception(
-            "Could not read the PDF: " + str(e)
-        )
-
+    document.close()
 
     return clean_text(text)
 
 
-# ============================================================
+# --------------------------------------------------
 # PDF ANALYSIS API
-# ============================================================
+# --------------------------------------------------
 
-@app.route(
-    "/api/analyze-pdf",
-    methods=["POST"]
-)
+@app.route("/api/analyze-pdf", methods=["POST"])
 def analyze_pdf():
 
     try:
 
         if "pdf" not in request.files:
 
-            return jsonify(
-                {
-                    "error":
-                    "No PDF file was uploaded."
-                }
-            ), 400
-
+            return jsonify({
+                "success": False,
+                "error": "Please upload a PDF file."
+            }), 400
 
         file = request.files["pdf"]
 
-
         if file.filename == "":
 
-            return jsonify(
-                {
-                    "error":
-                    "Please select a PDF file."
-                }
-            ), 400
-
+            return jsonify({
+                "success": False,
+                "error": "No PDF file selected."
+            }), 400
 
         if not file.filename.lower().endswith(".pdf"):
 
-            return jsonify(
-                {
-                    "error":
-                    "Only PDF files are allowed."
-                }
-            ), 400
-
-
-        # ----------------------------------------------------
-        # Extract PDF text
-        # ----------------------------------------------------
+            return jsonify({
+                "success": False,
+                "error": "Only PDF files are supported."
+            }), 400
 
         text = extract_pdf_text(file)
 
-
         if not text:
 
-            return jsonify(
-                {
-                    "error":
-                    "No readable text was found in the PDF. "
-                    "If this is a scanned PDF, OCR is required."
-                }
-            ), 400
+            return jsonify({
+                "success": False,
+                "error": "Could not extract text from this PDF."
+            }), 400
 
-
-        # ----------------------------------------------------
-        # Generate title
-        # ----------------------------------------------------
-
-        first_sentences = get_sentences(text)
-
-
-        if first_sentences:
-
-            title = first_sentences[0][:80]
-
-        else:
-
-            title = "PDF Document"
-
-
-        # ----------------------------------------------------
-        # Keywords
-        # ----------------------------------------------------
+        title = file.filename
 
         keywords = get_keywords(
             text,
-            limit=10
+            8
         )
-
-
-        # ----------------------------------------------------
-        # Main points
-        # ----------------------------------------------------
 
         points = get_main_points(
             text,
-            limit=8
+            8
         )
-
-
-        # ----------------------------------------------------
-        # Summary
-        # ----------------------------------------------------
 
         summary = make_summary(
-            text
+            text,
+            5
         )
-
-
-        # ----------------------------------------------------
-        # Structured mind map
-        # ----------------------------------------------------
 
         branches = create_branches(
             title,
@@ -508,42 +331,39 @@ def analyze_pdf():
             keywords
         )
 
+        return jsonify({
 
-        # ----------------------------------------------------
-        # Response
-        # ----------------------------------------------------
+            "success": True,
 
-        return jsonify(
-            {
-                "title": title,
-                "summary": summary,
-                "keywords": keywords,
-                "points": points,
-                "branches": branches,
-                "source": "Uploaded PDF"
-            }
-        )
+            "title": title,
 
+            "source": "Uploaded PDF",
+
+            "summary": summary,
+
+            "keywords": keywords,
+
+            "points": points,
+
+            "branches": branches,
+
+            "content": text
+
+        })
 
     except Exception as e:
 
-        print(
-            "PDF ERROR:",
-            str(e)
-        )
+        print("PDF ERROR:", e)
+
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
-        return jsonify(
-            {
-                "error":
-                "PDF analysis failed: " + str(e)
-            }
-        ), 500
-
-
-# ============================================================
-# WIKIPEDIA TOPIC SEARCH
-# ============================================================
+# --------------------------------------------------
+# WIKIPEDIA TOPIC
+# --------------------------------------------------
 
 def get_wikipedia_topic(topic):
 
@@ -553,249 +373,168 @@ def get_wikipedia_topic(topic):
         + requests.utils.quote(topic)
     )
 
+    response = requests.get(
+        url,
+        timeout=10,
+        headers={
+            "User-Agent": "PDF-Mind-Mapper/1.0"
+        }
+    )
 
-    try:
+    if response.status_code != 200:
 
-        response = requests.get(
-            url,
-            timeout=8,
-            headers={
-                "User-Agent":
-                "PDF-Mind-Mapper-AI/1.0"
-            }
-        )
+        return None
 
+    data = response.json()
 
-        if response.status_code == 200:
+    extract = data.get(
+        "extract",
+        ""
+    )
 
-            data = response.json()
+    if not extract:
 
+        return None
 
-            extract = data.get(
-                "extract",
-                ""
-            )
-
-
-            if extract:
-
-                return {
-                    "title":
-                    data.get(
-                        "title",
-                        topic
-                    ),
-
-                    "text":
-                    extract,
-
-                    "source":
-                    "Wikipedia"
-                }
+    return extract
 
 
-    except Exception as e:
-
-        print(
-            "Wikipedia error:",
-            str(e)
-        )
-
-
-    return None
-
-
-# ============================================================
-# FALLBACK TOPIC CONTENT
-# ============================================================
+# --------------------------------------------------
+# FALLBACK TOPIC
+# --------------------------------------------------
 
 def create_fallback_topic(topic):
 
-    text = f"""
+    return f"""
     {topic} is an important topic that can be studied
-    through its basic concepts, applications, advantages,
-    limitations, and real-world uses.
+    through its basic concepts, characteristics,
+    applications, advantages, limitations and examples.
 
-    The main concepts of {topic} help learners understand
-    how the subject works and where it can be applied.
+    Understanding {topic} helps learners understand
+    how the concept works and where it can be applied.
 
-    Learning {topic} includes understanding its fundamentals,
-    important terminology, practical applications, and
-    related technologies.
-
-    {topic} can be explored through examples, projects,
-    experiments, and further study.
+    The topic can be divided into different areas
+    for easier learning and revision.
     """
 
 
-    return clean_text(text)
-
-
-# ============================================================
+# --------------------------------------------------
 # NEW TOPIC API
-# ============================================================
+# --------------------------------------------------
 
-@app.route(
-    "/api/new-topic",
-    methods=["POST"]
-)
+@app.route("/api/new-topic", methods=["POST"])
 def new_topic():
 
     try:
 
-        data = request.get_json(
-            silent=True
-        )
+        data = request.get_json()
 
-
-        if not data:
-
-            return jsonify(
-                {
-                    "error":
-                    "Invalid request."
-                }
-            ), 400
-
-
-        topic = str(
-            data.get(
-                "topic",
-                ""
-            )
+        topic = data.get(
+            "topic",
+            ""
         ).strip()
-
 
         if not topic:
 
-            return jsonify(
-                {
-                    "error":
-                    "Please enter a topic."
-                }
-            ), 400
+            return jsonify({
+                "success": False,
+                "error": "Please enter a topic."
+            }), 400
 
-
-        # ----------------------------------------------------
-        # Try Wikipedia
-        # ----------------------------------------------------
-
-        wiki_data = get_wikipedia_topic(
+        text = get_wikipedia_topic(
             topic
         )
 
+        source = "Wikipedia"
 
-        if wiki_data:
-
-            title = wiki_data["title"]
-
-            text = wiki_data["text"]
-
-            source = wiki_data["source"]
-
-        else:
-
-            title = topic
+        if not text:
 
             text = create_fallback_topic(
                 topic
             )
 
-            source = "Generated topic content"
+            source = "Generated Topic"
 
-
-        # ----------------------------------------------------
-        # Keywords
-        # ----------------------------------------------------
+        text = clean_text(text)
 
         keywords = get_keywords(
             text,
-            limit=10
+            8
         )
-
-
-        # ----------------------------------------------------
-        # Main points
-        # ----------------------------------------------------
 
         points = get_main_points(
             text,
-            limit=8
+            8
         )
-
-
-        # ----------------------------------------------------
-        # Summary
-        # ----------------------------------------------------
 
         summary = make_summary(
-            text
+            text,
+            5
         )
 
-
-        # ----------------------------------------------------
-        # Mind map
-        # ----------------------------------------------------
-
         branches = create_branches(
-            title,
+            topic,
             text,
             keywords
         )
 
+        return jsonify({
 
-        # ----------------------------------------------------
-        # Return result
-        # ----------------------------------------------------
+            "success": True,
 
-        return jsonify(
-            {
-                "title": title,
-                "summary": summary,
-                "keywords": keywords,
-                "points": points,
-                "branches": branches,
-                "source": source
-            }
-        )
+            "title": topic,
 
+            "source": source,
+
+            "summary": summary,
+
+            "keywords": keywords,
+
+            "points": points,
+
+            "branches": branches,
+
+            "content": text
+
+        })
 
     except Exception as e:
 
-        print(
-            "TOPIC ERROR:",
-            str(e)
-        )
+        print("TOPIC ERROR:", e)
+
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
-        return jsonify(
-            {
-                "error":
-                "Topic generation failed: " +
-                str(e)
-            }
-        ), 500
-
-
-# ============================================================
+# --------------------------------------------------
 # HEALTH CHECK
-# ============================================================
+# --------------------------------------------------
 
 @app.route("/health")
 def health():
 
-    return jsonify(
-        {
-            "status": "ok",
-            "message":
-            "PDF Mind Mapper AI is running"
-        }
+    return jsonify({
+        "status": "ok"
+    })
+
+
+# --------------------------------------------------
+# HOME
+# --------------------------------------------------
+
+@app.route("/")
+def home():
+
+    return render_template(
+        "index.html"
     )
 
 
-# ============================================================
-# LOCAL DEVELOPMENT
-# ============================================================
+# --------------------------------------------------
+# RUN
+# --------------------------------------------------
 
 if __name__ == "__main__":
 
