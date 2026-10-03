@@ -3,211 +3,992 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>PDF Mind Mapper AI</title>
+
     <link rel="stylesheet" href="/static/style.css">
+
+    <!-- Mermaid -->
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 </head>
+
 <body>
+
 <header>
     <div>
-        <h1>🧠 PDF Mind Mapper AI</h1>
+        <h1>🧠SOWTAS PDF Mind Mapper AI</h1>
         <p>Turn PDFs and any new topic into simple notes and mind maps.</p>
     </div>
 </header>
 
+
 <main>
+
+    <!-- PDF SECTION -->
     <section class="card">
+
         <h2>📄 Analyze a PDF</h2>
-        <p>Upload study material, notes, reports or textbooks.</p>
+
+        <p>
+            Upload study material, notes, reports or textbooks.
+        </p>
+
         <div class="upload-box">
-            <input type="file" id="pdfFile" accept=".pdf">
-            <button onclick="analyzePDF()">Analyze PDF</button>
+
+            <input
+                type="file"
+                id="pdfFile"
+                accept=".pdf"
+            >
+
+            <button onclick="analyzePDF()">
+                Analyze PDF
+            </button>
+
         </div>
+
         <div id="pdfStatus"></div>
+
     </section>
 
+
+    <!-- NEW TOPIC SECTION -->
     <section class="card">
+
         <h2>➕ Learn a New Topic</h2>
-        <p>This topic does not have to exist in your PDF.</p>
+
+        <p>
+            This topic does not have to exist in your PDF.
+        </p>
+
         <div class="topic-row">
-            <input id="topicInput" placeholder="Example: Quantum Computing">
-            <button onclick="newTopic()">Generate Topic</button>
+
+            <input
+                id="topicInput"
+                type="text"
+                placeholder="Example: Quantum Computing"
+            >
+
+            <button onclick="newTopic()">
+                Generate Topic
+            </button>
+
         </div>
+
         <div id="topicStatus"></div>
+
     </section>
 
-    <section id="result" class="result hidden">
+
+    <!-- RESULT -->
+    <section
+        id="result"
+        class="result hidden"
+    >
+
         <div class="result-header">
+
             <div>
-                <span class="badge">AI RESULT</span>
+
+                <span class="badge">
+                    AI RESULT
+                </span>
+
                 <h2 id="resultTitle"></h2>
+
             </div>
-            <button onclick="downloadNotes()">⬇ Download Notes</button>
+
+            <button onclick="downloadNotes()">
+                ⬇ Download Notes
+            </button>
+
         </div>
+
 
         <div class="grid">
+
+
+            <!-- SUMMARY -->
             <div class="panel">
+
                 <h3>📝 Summary</h3>
+
                 <p id="summary"></p>
+
             </div>
 
+
+            <!-- KEYWORDS -->
             <div class="panel">
+
                 <h3>🔑 Keywords</h3>
-                <div id="keywords" class="tags"></div>
+
+                <div
+                    id="keywords"
+                    class="tags"
+                ></div>
+
             </div>
 
+
+            <!-- MAIN POINTS -->
             <div class="panel full">
+
                 <h3>📌 Main Points</h3>
+
                 <ol id="points"></ol>
+
             </div>
 
+
+            <!-- MIND MAP -->
             <div class="panel full">
+
                 <h3>🗺️ Mind Map</h3>
-                <div id="mindmap" class="mindmap"></div>
+
+                <div
+                    id="mindmap"
+                    class="mindmap"
+                ></div>
+
             </div>
+
         </div>
 
-        <p id="source" class="source"></p>
+
+        <p
+            id="source"
+            class="source"
+        ></p>
+
     </section>
+
 </main>
 
+
 <script>
-mermaid.initialize({ startOnLoad: false, theme: "default" });
+
+/* =========================================================
+   MERMAID CONFIGURATION
+========================================================= */
+
+mermaid.initialize({
+
+    startOnLoad: false,
+
+    theme: "default",
+
+    securityLevel: "loose",
+
+    flowchart: {
+        useMaxWidth: true
+    }
+
+});
+
+
+/* =========================================================
+   GLOBAL DATA
+========================================================= */
 
 let currentData = null;
 
-function setStatus(id, msg, error=false) {
+
+/* =========================================================
+   STATUS MESSAGE
+========================================================= */
+
+function setStatus(id, msg, error = false) {
+
     const el = document.getElementById(id);
+
     el.textContent = msg;
-    el.className = error ? "status error" : "status";
+
+    el.className = error
+        ? "status error"
+        : "status";
+
 }
+
+
+/* =========================================================
+   ANALYZE PDF
+========================================================= */
 
 async function analyzePDF() {
-    const file = document.getElementById("pdfFile").files[0];
+
+    const file =
+        document.getElementById("pdfFile").files[0];
+
+
     if (!file) {
-        setStatus("pdfStatus", "Please select a PDF.", true);
+
+        setStatus(
+            "pdfStatus",
+            "Please select a PDF.",
+            true
+        );
+
         return;
     }
 
-    setStatus("pdfStatus", "Analyzing PDF...");
+
+    if (file.type !== "application/pdf") {
+
+        setStatus(
+            "pdfStatus",
+            "Please select a valid PDF file.",
+            true
+        );
+
+        return;
+    }
+
+
+    setStatus(
+        "pdfStatus",
+        "Analyzing PDF..."
+    );
+
 
     const form = new FormData();
+
     form.append("pdf", file);
 
+
     try {
-        const response = await fetch("/api/analyze-pdf", {
-            method: "POST",
-            body: form
-        });
+
+        const response = await fetch(
+            "/api/analyze-pdf",
+            {
+                method: "POST",
+                body: form
+            }
+        );
+
+
         const data = await response.json();
 
-        if (!response.ok) throw new Error(data.error);
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.error || "PDF analysis failed."
+            );
+
+        }
+
+
         showResult(data);
-        setStatus("pdfStatus", "PDF analyzed successfully.");
+
+
+        setStatus(
+            "pdfStatus",
+            "PDF analyzed successfully."
+        );
+
+
     } catch (e) {
-        setStatus("pdfStatus", e.message, true);
+
+        console.error(e);
+
+
+        setStatus(
+            "pdfStatus",
+            e.message || "Something went wrong.",
+            true
+        );
+
     }
+
 }
 
+
+/* =========================================================
+   GENERATE NEW TOPIC
+========================================================= */
+
 async function newTopic() {
-    const topic = document.getElementById("topicInput").value.trim();
+
+    const topic =
+        document
+            .getElementById("topicInput")
+            .value
+            .trim();
+
 
     if (!topic) {
-        setStatus("topicStatus", "Please enter a topic.", true);
+
+        setStatus(
+            "topicStatus",
+            "Please enter a topic.",
+            true
+        );
+
         return;
     }
 
-    setStatus("topicStatus", "Generating topic content...");
+
+    setStatus(
+        "topicStatus",
+        "Generating topic content..."
+    );
+
 
     try {
-        const response = await fetch("/api/new-topic", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({topic})
-        });
 
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error);
+        const response = await fetch(
+            "/api/new-topic",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body: JSON.stringify({
+                    topic: topic
+                })
+            }
+        );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.error ||
+                "Topic generation failed."
+            );
+
+        }
+
 
         showResult(data);
-        setStatus("topicStatus", "New topic generated.");
+
+
+        setStatus(
+            "topicStatus",
+            "New topic generated."
+        );
+
+
     } catch (e) {
-        setStatus("topicStatus", e.message, true);
+
+        console.error(e);
+
+
+        setStatus(
+            "topicStatus",
+            e.message ||
+            "Something went wrong.",
+            true
+        );
+
     }
+
 }
+
+
+/* =========================================================
+   SHOW RESULT
+========================================================= */
 
 async function showResult(data) {
+
     currentData = data;
 
-    document.getElementById("result").classList.remove("hidden");
-    document.getElementById("resultTitle").textContent = data.title;
-    document.getElementById("summary").textContent = data.summary;
 
-    const tags = document.getElementById("keywords");
+    /* Show result section */
+
+    document
+        .getElementById("result")
+        .classList
+        .remove("hidden");
+
+
+    /* Title */
+
+    document
+        .getElementById("resultTitle")
+        .textContent =
+            data.title || "Untitled";
+
+
+    /* Summary */
+
+    document
+        .getElementById("summary")
+        .textContent =
+            data.summary || "No summary available.";
+
+
+    /* =====================================================
+       KEYWORDS
+    ===================================================== */
+
+    const tags =
+        document.getElementById("keywords");
+
+
     tags.innerHTML = "";
-    data.keywords.forEach(k => {
-        const span = document.createElement("span");
-        span.className = "tag";
-        span.textContent = k;
+
+
+    const keywords =
+        Array.isArray(data.keywords)
+            ? data.keywords
+            : [];
+
+
+    if (keywords.length === 0) {
+
+        const span =
+            document.createElement("span");
+
+        span.textContent =
+            "No keywords available.";
+
         tags.appendChild(span);
-    });
 
-    const list = document.getElementById("points");
-    list.innerHTML = "";
-    data.points.forEach(p => {
-        const li = document.createElement("li");
-        li.textContent = p;
-        list.appendChild(li);
-    });
+    } else {
 
-    const lines = [
-        "mindmap",
-        `  root((${escapeMermaid(data.title)}))`
-    ];
+        keywords.forEach(keyword => {
 
-    data.keywords.forEach((k, i) => {
-        lines.push(`  root --> n${i}[${escapeMermaid(k)}]`);
-    });
+            const span =
+                document.createElement("span");
 
-    const box = document.getElementById("mindmap");
-    box.innerHTML = `<div class="mermaid">${lines.join("\n")}</div>`;
+            span.className = "tag";
 
-    try {
-        await mermaid.run({nodes: [box.querySelector(".mermaid")]});
-    } catch (e) {
-        box.innerHTML = "<p>Mind map could not be rendered.</p>";
+            span.textContent = keyword;
+
+            tags.appendChild(span);
+
+        });
+
     }
 
-    document.getElementById("source").textContent =
-        data.source ? "Source: " + data.source : "Source: Uploaded PDF";
+
+    /* =====================================================
+       MAIN POINTS
+    ===================================================== */
+
+    const list =
+        document.getElementById("points");
+
+
+    list.innerHTML = "";
+
+
+    const points =
+        Array.isArray(data.points)
+            ? data.points
+            : [];
+
+
+    if (points.length === 0) {
+
+        const li =
+            document.createElement("li");
+
+        li.textContent =
+            "No main points available.";
+
+        list.appendChild(li);
+
+    } else {
+
+        points.forEach(point => {
+
+            const li =
+                document.createElement("li");
+
+            li.textContent = point;
+
+            list.appendChild(li);
+
+        });
+
+    }
+
+
+    /* =====================================================
+       GENERATE MIND MAP
+    ===================================================== */
+
+    await generateMindMap(
+        data.title,
+        keywords,
+        points
+    );
+
+
+    /* =====================================================
+       SOURCE
+    ===================================================== */
+
+    document
+        .getElementById("source")
+        .textContent =
+            data.source
+                ? "Source: " + data.source
+                : "Source: Uploaded PDF";
+
+
+    /* Scroll to result */
+
+    document
+        .getElementById("result")
+        .scrollIntoView({
+            behavior: "smooth"
+        });
+
 }
+
+
+/* =========================================================
+   GENERATE MIND MAP
+========================================================= */
+
+async function generateMindMap(
+    title,
+    keywords,
+    points
+) {
+
+    const box =
+        document.getElementById("mindmap");
+
+
+    /* Clear previous map */
+
+    box.innerHTML = "";
+
+
+    /*
+       Mermaid mindmap syntax:
+
+       mindmap
+         root((Topic))
+           Keyword
+             Main Point
+    */
+
+
+    const lines = [];
+
+
+    lines.push("mindmap");
+
+
+    /* Root */
+
+    lines.push(
+        `  root((${escapeMermaid(title)}))`
+    );
+
+
+    /*
+       Add keywords.
+
+       Each keyword becomes
+       a branch of the main topic.
+    */
+
+    keywords
+        .slice(0, 10)
+        .forEach(keyword => {
+
+            lines.push(
+                `    ${escapeMermaid(keyword)}`
+            );
+
+        });
+
+
+    /*
+       Add main points under
+       the first few keywords.
+
+       This creates a deeper
+       mind-map structure.
+    */
+
+    if (
+        keywords.length > 0 &&
+        points.length > 0
+    ) {
+
+        const keywordCount =
+            Math.min(
+                keywords.length,
+                5
+            );
+
+
+        const pointCount =
+            Math.min(
+                points.length,
+                5
+            );
+
+
+        for (
+            let i = 0;
+            i < keywordCount;
+            i++
+        ) {
+
+            const keyword =
+                escapeMermaid(
+                    keywords[i]
+                );
+
+
+            /*
+               Find the keyword branch
+               and add points under it.
+            */
+
+            lines.push(
+                `      ${escapeMermaid(
+                    points[
+                        i % pointCount
+                    ]
+                )}`
+            );
+
+        }
+
+    }
+
+
+    /* =====================================================
+       CREATE MERMAID ELEMENT
+    ===================================================== */
+
+    const diagram =
+        document.createElement("div");
+
+
+    diagram.className = "mermaid";
+
+
+    diagram.textContent =
+        lines.join("\n");
+
+
+    box.appendChild(diagram);
+
+
+    /* =====================================================
+       RENDER MERMAID
+    ===================================================== */
+
+    try {
+
+        await mermaid.run({
+            nodes: [diagram]
+        });
+
+
+    } catch (error) {
+
+        console.error(
+            "Mermaid rendering error:",
+            error
+        );
+
+
+        /*
+           If mindmap syntax fails,
+           show a simple fallback.
+        */
+
+        showMindMapFallback(
+            box,
+            title,
+            keywords,
+            points
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   MERMAID ESCAPE
+========================================================= */
 
 function escapeMermaid(text) {
-    return String(text).replace(/[()[\]{}<>]/g, "");
+
+    return String(text || "")
+
+        .replace(/[\r\n]+/g, " ")
+
+        .replace(/[()[\]{}<>]/g, "")
+
+        .replace(/["']/g, "")
+
+        .trim();
+
 }
+
+
+/* =========================================================
+   FALLBACK MIND MAP
+========================================================= */
+
+function showMindMapFallback(
+    box,
+    title,
+    keywords,
+    points
+) {
+
+    box.innerHTML = "";
+
+
+    const wrapper =
+        document.createElement("div");
+
+
+    wrapper.className =
+        "fallback-map";
+
+
+    /* Root */
+
+    const root =
+        document.createElement("div");
+
+
+    root.className =
+        "map-root";
+
+
+    root.textContent =
+        title;
+
+
+    wrapper.appendChild(root);
+
+
+    /* Branches */
+
+    keywords
+        .slice(0, 10)
+        .forEach((keyword, index) => {
+
+            const branch =
+                document.createElement("div");
+
+
+            branch.className =
+                "map-branch";
+
+
+            branch.textContent =
+                "🔹 " + keyword;
+
+
+            wrapper.appendChild(branch);
+
+
+            /*
+               Add point under keyword
+            */
+
+            if (
+                points.length > 0 &&
+                index < points.length
+            ) {
+
+                const point =
+                    document.createElement("div");
+
+
+                point.className =
+                    "map-point";
+
+
+                point.textContent =
+                    "↳ " + points[index];
+
+
+                wrapper.appendChild(point);
+
+            }
+
+        });
+
+
+    box.appendChild(wrapper);
+
+}
+
+
+/* =========================================================
+   DOWNLOAD NOTES
+========================================================= */
 
 function downloadNotes() {
-    if (!currentData) return;
 
-    let text = `PDF MIND MAPPER AI\n\n`;
-    text += `TITLE: ${currentData.title}\n\n`;
-    text += `SUMMARY:\n${currentData.summary}\n\n`;
-    text += `KEYWORDS:\n${currentData.keywords.join(", ")}\n\n`;
-    text += `MAIN POINTS:\n`;
-    currentData.points.forEach((p, i) => {
-        text += `${i + 1}. ${p}\n`;
-    });
-    text += `\nMIND MAP:\n`;
-    text += currentData.keywords.map(k => `- ${currentData.title} -> ${k}`).join("\n");
+    if (!currentData) {
 
-    const blob = new Blob([text], {type: "text/plain"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+        return;
+
+    }
+
+
+    let text =
+        "PDF MIND MAPPER AI\n\n";
+
+
+    text +=
+        "TITLE:\n" +
+        currentData.title +
+        "\n\n";
+
+
+    text +=
+        "SUMMARY:\n" +
+        currentData.summary +
+        "\n\n";
+
+
+    text +=
+        "KEYWORDS:\n";
+
+
+    if (
+        Array.isArray(
+            currentData.keywords
+        )
+    ) {
+
+        currentData.keywords
+            .forEach((keyword, index) => {
+
+                text +=
+                    `${index + 1}. ${keyword}\n`;
+
+            });
+
+    }
+
+
+    text +=
+        "\nMAIN POINTS:\n";
+
+
+    if (
+        Array.isArray(
+            currentData.points
+        )
+    ) {
+
+        currentData.points
+            .forEach((point, index) => {
+
+                text +=
+                    `${index + 1}. ${point}\n`;
+
+            });
+
+    }
+
+
+    text +=
+        "\nMIND MAP:\n";
+
+
+    if (
+        Array.isArray(
+            currentData.keywords
+        )
+    ) {
+
+        currentData.keywords
+            .forEach(keyword => {
+
+                text +=
+                    `- ${currentData.title} -> ${keyword}\n`;
+
+            });
+
+    }
+
+
+    /* Create text file */
+
+    const blob =
+        new Blob(
+            [text],
+            {
+                type: "text/plain"
+            }
+        );
+
+
+    const url =
+        URL.createObjectURL(blob);
+
+
+    const a =
+        document.createElement("a");
+
+
     a.href = url;
-    a.download = currentData.title.replace(/\s+/g, "_") + "_notes.txt";
+
+
+    a.download =
+        (
+            currentData.title ||
+            "mind_map"
+        )
+        .replace(/\s+/g, "_") +
+        "_notes.txt";
+
+
+    document.body.appendChild(a);
+
+
     a.click();
+
+
+    document.body.removeChild(a);
+
+
     URL.revokeObjectURL(url);
+
 }
+
+
+/* =========================================================
+   ENTER KEY FOR NEW TOPIC
+========================================================= */
+
+document
+    .getElementById("topicInput")
+    .addEventListener(
+        "keydown",
+        function(event) {
+
+            if (event.key === "Enter") {
+
+                newTopic();
+
+            }
+
+        }
+    );
+
 </script>
+
 </body>
 </html>
